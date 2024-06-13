@@ -7,20 +7,20 @@
 
 # **Notebook to cleanup ECR data from ECR List on Sharepoint**
 
-# In[1]:
+# In[31]:
 
 
 from pyspark.sql.functions import*
 from pyspark.sql.types import StructType,StructField,StringType,ArrayType,IntegerType
 
-df = spark.sql("SELECT * FROM sharepoint_ecr_list.ECR_List")
+df = spark.sql("SELECT * FROM sharepoint_ecr_list.ECR_List_Raw")
 df = df.sort(df['ECR_#'].desc())
 #display(df)
 
 
 # JSON schema for project and subproject
 
-# In[2]:
+# In[32]:
 
 
 products_schema = ArrayType(
@@ -31,7 +31,7 @@ products_schema = ArrayType(
 )
 
 
-# In[3]:
+# In[33]:
 
 
 added_schema = ArrayType(
@@ -47,12 +47,12 @@ added_schema = ArrayType(
 
 # Selecting the required columns for data analysis
 
-# In[4]:
+# In[34]:
 
 
 newdf = df.select(
     col('Title').alias('ECR#'),\
-    col('Urgency_Mech'),\
+    col('Urgency_Code_Mech'),\
     explode(from_json(col('Products_Mech'),products_schema)).alias('Products_Mech'),\
     col('Products_Added_Mech').alias('Products_Added'),\
     col('Stage_Mech'),\
@@ -63,7 +63,8 @@ newdf = df.select(
     col('Review_Project_Leader_Sign_Mech'),\
     col('Docu_Control_Leader_Sign_Mech'),\
     col('Docu_Control_Admin_Sign_Mech'),\
-    col('NCR#')
+    col('NCR#'),\
+    col('Total#ofFolders')
 )
 
 #display(newdf)
@@ -71,7 +72,7 @@ newdf = df.select(
 
 # Splitting the Products_Mech to projects and subprojects columns
 
-# In[5]:
+# In[35]:
 
 
 #newdf = newdf.withColumn('ID', col('Products_Mech.__id'))
@@ -80,49 +81,23 @@ newdf = newdf.withColumn('Subproject', col('Products_Mech.Subproject'))
 #display(newdf)
 
 
-# In[6]:
+# Formatting the Project and Subproject columns to identify all the projects and subprojects involved in the ECR
+
+# In[36]:
+
+
+newdf = newdf.withColumn('Project',trim(newdf.Project))
+newdf = newdf.withColumn('Project',split('Project','[/,&;]'))
+newdf = newdf.withColumn('Project',explode('Project'))
+newdf = newdf.withColumn('Subproject',trim(newdf.Subproject))
+newdf = newdf.withColumn('Subproject',split('Subproject','[/]'))
+newdf = newdf.withColumn('Subproject',explode('Subproject'))
+#display(newdf)
+
+
+# In[37]:
 
 
 delta_table_path = "Tables/ECR_List_Clean" #fill in your delta table path 
 newdf.write.format("delta").mode("overwrite").option('overwriteSchema','true').save(delta_table_path)
-
-
-# In[7]:
-
-
-'''
-df = df.withColumn('Products_Mech',regexp_replace('Products_Mech','[\[\]]',''))
-df = df.withColumn('Products_Added_Mech',regexp_replace('Products_Added_Mech','[\[\]]',''))
-df = df.withColumn('Products_Removed_Mech',regexp_replace('Products_Removed_Mech','[\[\]]',''))
-df = df.withColumn('Drawing_Mech',regexp_replace('Drawing_Mech','[\[\]]',''))
-#display(df)
-'''
-
-'''
-newdf = df.withColumn('Stage_Mech',col('Stage_Mech'))
-newdf = df.withColumn('Created',col('Created'))
-newdf = df.withColumn('Modified',col('Modified'))
-newdf = df.withColumn('Project_Leader_Sign_Mech',col('Project_Leader_Sign_Mech'))
-newdf = df.withColumn('ECR_Completed_Sign_Mech',col('ECR_Completed_Sign_Mech'))
-newdf = df.withColumn('Review_Project_Leader_Sign_Mech',col('Review_Project_Leader_Sign_Mech'))
-newdf = df.withColumn('Docu_Control_Leader_Sign_Mech',col('Docu_Control_Leader_Sign_Mech'))
-newdf = df.withColumn('Docu_Control_Admin_Sign_Mech',col('Docu_Control_Admin_Sign_Mech'))
-newdf = df.withColumn('NCR#',col('NCR#'))
-'''
-
-'''
-#newdf = newdf.withColumn('Products_Added', concat(lit('['), col('Products_Added'), lit(']')))
-#newdf = newdf.withColumn('Products_Added',regexp_replace('Products_Added','[\[\]]',''))
-newdf = newdf.withColumn('Products_Added',from_json(col('Products_Added'),added_schema))
-'''
-
-
-# In[8]:
-
-
-'''
-adf = newdf.select(json_tuple(col("Products_Mech"),"__id","Project","Subproject")).toDF("id","Project","Subproject")
-display(newdf)
-#df.withColumn('Products_Mech', from_json(df.Products_Mech,MapType(StringType(),)))
-'''
 
