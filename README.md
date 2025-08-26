@@ -1,2 +1,2 @@
-A compilation of the projects I worked on throughout my career
-some python, and some containing notebooks from working at Samco Machinery
+A compilation of the projects I worked on throughout my career at Samco Machinery
+The Data Engineering folder contains all the notebooks
